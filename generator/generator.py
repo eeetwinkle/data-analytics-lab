@@ -55,6 +55,7 @@ def create_tables():
         total_amount DECIMAL(10, 2) GENERATED ALWAYS AS (price * quantity) STORED
     )
     """)
+    cur.execute("CREATE DATABASE redash_metadata")
 
     cur.execute("CREATE INDEX IF NOT EXISTS idx_order_timestamp ON orders(order_timestamp)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_category ON orders(category)")
@@ -100,8 +101,8 @@ def save_order(order):
 
     cur.execute(f"""
     INSERT INTO orders (product_name, category, price, quantity, city, customer_name, order_timestamp)
-    VALUES ({order['product_name']}, {order['category']}, {order['price']}, {order['quantity']}, {order['city']}, 
-            {order['customer_name']}, {order['order_timestamp']})""")
+    VALUES ('{order['product_name']}', '{order['category']}', '{order['price']}', '{order['quantity']}', '{order['city']}', 
+            '{order['customer_name']}', '{order['order_timestamp']}')""")
 
     conn.commit()
     cur.close()

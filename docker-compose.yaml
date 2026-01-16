@@ -12,13 +12,61 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
       - network
+  redash:
+    image: redash/redash:10.1.0.b50633
+    container_name: redash
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/login" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      REDASH_DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/redash_metadata"
+      REDASH_REDIS_URL: "redis://redis:6379/0"
+      REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-veryverysecretkey}"
+      REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-woequwioqifhiuada}"
+      REDASH_WEB_WORKERS: 1
+      REDASH_LOG_LEVEL: "INFO"
+    ports:
+      - "8080:5000"
+    networks:
+      - network
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    networks:
+      - network
+    restart: unless-stopped
+
+  worker:
+    image: redash/redash:10.1.0.b50633
+    container_name: redash_worker
+    depends_on:
+      - redash
+      - redis
+      - postgres
+    environment:
+      REDASH_DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/redash_metadata"
+      REDASH_REDIS_URL: "redis://redis:6379/0"
+      REDASH_COOKIE_SECRET: "${REDASH_COOKIE_SECRET:-woequwioqifhiuada}"
+      REDASH_SECRET_KEY: "${REDASH_SECRET_KEY:-veryverysecretkey}"
+      QUEUES: "queries,celery"
+    networks:
+      - network
+    command: scheduler
+    restart: unless-stopped
 
   generator:
     build:
